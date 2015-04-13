@@ -34,7 +34,7 @@ void printValue(Context& ctx, Value* v, int in)
             break;
 
         case Value::NUMBER:
-            printf("num %g\n", v->getNumber()->d);
+            printf("num %ld\n", v->getNumber()->v);
             break;
 
         case Value::CLOSURE:
@@ -53,8 +53,15 @@ void printValue(Context& ctx, Value* v, int in)
 
 static Value* display(Context& ctx, Value* v)
 {
-    printf("DISPLAY\n");
-    printValue(ctx, v->getPair()->car, 2);
+    if (v->getType() == Value::STRING)
+    {
+        printf("%s", v->getString()->s.c_str());
+    }
+    else
+    {
+        printf("DISPLAY\n");
+        printValue(ctx, v->getPair()->car, 2);
+    }
     return ctx.nil();
 }
 

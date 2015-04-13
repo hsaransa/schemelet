@@ -1,9 +1,11 @@
 #include "schemelet.hpp"
 #include <stack>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 void printValue(sl::Context& ctx, sl::Value* v, int in);
 
 using namespace sl;
@@ -102,14 +104,28 @@ Value* Context::parseSExp(const char*& data, std::map<Value*, const char*>* pos)
     const char* start = data;
 
     {
-        const char* end;
-        // TODO: attempt to parse double too
-        long long int i = strtoll(data, (char**)&end, 0);
+        const char* endd, *endl;
+        strtod(data, (char**)&endd);
+        long int li = strtol(data, (char**)&endl, 0);
 
-        if (end != data)
+        if (endd > endl)
         {
-            Value* v = recordPos(start, pos, makeNumber((double)i));
-            data = end;
+            Value* v = recordPos(start, pos, makePair(sym("unparsed-float"), makePair(makeString(std::string(start, endd)), nil())));
+            data = endd;
+            return v;
+        }
+
+        if (li == LONG_MIN || li == LONG_MAX)
+        {
+            Value* v = recordPos(start, pos, makePair(sym("unparsed-int"), makePair(makeString(std::string(start, endl)), nil())));
+            data = endl;
+            return v;
+        }
+
+        if (endl != data)
+        {
+            Value* v = recordPos(start, pos, makeNumber(li));
+            data = endl;
             return v;
         }
     }
@@ -150,7 +166,7 @@ Value* Context::parseSExp(const char*& data, std::map<Value*, const char*>* pos)
     {
         data += 2;
 
-        while (isAlnum(*data))
+        while (isAlnum(*data) || *data == '.')
             data++;
 
         if (std::string(start+2, data) == "newline")
@@ -723,7 +739,7 @@ Value* Context::unannotate(Value* v, std::map<Value*, FilePos>& pos)
         if (p2->car->getType() == Value::SYMBOL)
             fp.f = p2->car->getSymbol();
         if (p2->getType() == Value::NUMBER)
-            fp.p = int(p2->cdr->getNumber()->d);
+            fp.p = int(p2->cdr->getNumber()->v);
     }
 
     Value* ret;
@@ -883,6 +899,8 @@ static bool match(Context& ctx, const char* p, Value* args)
             err = ctx.sym("expecting-boolean");
         if (*p == 's' && args->getPair()->car->getType() != Value::SYMBOL)
             err = ctx.sym("expecting-symbol");
+        if (*p == 'S' && args->getPair()->car->getType() != Value::STRING)
+            err = ctx.sym("expecting-string");
         if (*p == 'q' && (args->getPair()->car->getType() != Value::CLOSURE && args->getPair()->car->getType() != Value::PROCEDURE))
             err = ctx.sym("expecting-closure");
         if (*p == 'w' && args->getPair()->car->getType() != Value::CODE)
@@ -924,21 +942,24 @@ BEGIN_PROCEDURE(n) { \
     MATCH(m); \
     return (c); }
 
-SIMPLE_PROCEDURE(cons,      "..", ctx.makePair(ARG0, ARG1));
-SIMPLE_PROCEDURE(car,       "p",  ARG0->getPair()->car);
-SIMPLE_PROCEDURE(cdr,       "p",  ARG0->getPair()->cdr);
-SIMPLE_PROCEDURE(set_car,   "p.", ((ARG0->getPair()->car = ARG1), ctx.nil()));
-SIMPLE_PROCEDURE(set_cdr,   "p.", ((ARG0->getPair()->cdr = ARG1), ctx.nil()));
-SIMPLE_PROCEDURE(add2,      "nn", ctx.makeNumber(ARG0->getNumber()->d + ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(sub2,      "nn", ctx.makeNumber(ARG0->getNumber()->d - ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(mul2,      "nn", ctx.makeNumber(ARG0->getNumber()->d * ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(div2,      "nn", ctx.makeNumber(ARG0->getNumber()->d / ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(lt,        "nn", ctx.makeBoolean(ARG0->getNumber()->d < ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(gt,        "nn", ctx.makeBoolean(ARG0->getNumber()->d > ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(le,        "nn", ctx.makeBoolean(ARG0->getNumber()->d <= ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(ge,        "nn", ctx.makeBoolean(ARG0->getNumber()->d >= ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(eqnum,     "nn", ctx.makeBoolean(ARG0->getNumber()->d == ARG1->getNumber()->d));
-SIMPLE_PROCEDURE(eq,        "..", ctx.makeBoolean(ARG0 == ARG1));
+SIMPLE_PROCEDURE(cons,      "..", ctx.makePair(ARG0, ARG1))
+SIMPLE_PROCEDURE(car,       "p",  ARG0->getPair()->car)
+SIMPLE_PROCEDURE(cdr,       "p",  ARG0->getPair()->cdr)
+SIMPLE_PROCEDURE(set_car,   "p.", ((ARG0->getPair()->car = ARG1), ctx.nil()))
+SIMPLE_PROCEDURE(set_cdr,   "p.", ((ARG0->getPair()->cdr = ARG1), ctx.nil()))
+SIMPLE_PROCEDURE(add2,      "nn", ctx.makeNumber(ARG0->getNumber()->v + ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(sub2,      "nn", ctx.makeNumber(ARG0->getNumber()->v - ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(mul2,      "nn", ctx.makeNumber(ARG0->getNumber()->v * ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(div2,      "nn", ctx.makeNumber(ARG0->getNumber()->v / ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(lt,        "nn", ctx.makeBoolean(ARG0->getNumber()->v < ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(gt,        "nn", ctx.makeBoolean(ARG0->getNumber()->v > ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(le,        "nn", ctx.makeBoolean(ARG0->getNumber()->v <= ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(ge,        "nn", ctx.makeBoolean(ARG0->getNumber()->v >= ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(eqnum,     "nn", ctx.makeBoolean(ARG0->getNumber()->v == ARG1->getNumber()->v))
+SIMPLE_PROCEDURE(eq,        "..", ctx.makeBoolean(ARG0 == ARG1))
+SIMPLE_PROCEDURE(symbol_to_string, "s",  ctx.makeString(ARG0->getSymbol()->s))
+SIMPLE_PROCEDURE(string_ref,       "Sn", ctx.makeChar(ARG0->getString()->s.at(ARG1->getNumber()->v)))
+SIMPLE_PROCEDURE(string_length,    "S",  ctx.makeNumber(ARG0->getString()->s.length()))
 
 #define PREDICATE(n, t) \
 BEGIN_PROCEDURE(n) { \
@@ -1041,4 +1062,7 @@ void Context::initStandardLibrary()
     getTopEnv().symbols[sym("stdin-port")]  = registerValue(new FILEPort(stdin, Port::READ));
     getTopEnv().symbols[sym("stdout-port")] = registerValue(new FILEPort(stdout, Port::WRITE));
     getTopEnv().symbols[sym("stderr-port")] = registerValue(new FILEPort(stderr, Port::WRITE));
+    getTopEnv().symbols[sym("symbol->string")] = makeProcedure(s_symbol_to_string);
+    getTopEnv().symbols[sym("string-ref")] = makeProcedure(s_string_ref);
+    getTopEnv().symbols[sym("string-length")] = makeProcedure(s_string_length);
 }

@@ -106,8 +106,8 @@ namespace sl
 
     struct Number : public Value
     {
-        Number(double d) : Value(NUMBER), d(d) {}
-        double d;
+        Number(long int v) : Value(NUMBER), v(v) {}
+        long int v;
     };
 
     struct Char : public Value

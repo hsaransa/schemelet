@@ -17,6 +17,8 @@
 
 (define (list . x) x)
 
+; Numeric.
+
 (define (sum-list x)
   (if (null? x)
     0
@@ -37,8 +39,6 @@
     (if (pair? x)
       (mul2 (car x) (mul-list (cdr x)))
       (error 'bad-argument-type 'expecting-number))))
-
-; Numeric.
 
 (define +
   (lambda x (sum-list x)))
@@ -65,5 +65,13 @@
     (let ((v (proc p)))
       (close-output-port p)
       v)))
+
+(define (write-string s p)
+  (define (write-string-range i n s p)
+    (if (< i n)
+      (begin
+        (write-char (string-ref s i) p)
+        (write-string-range (+ i 1) n s p))))
+  (write-string-range 0 (string-length s) s p))
 
 'standard-library-initialized
